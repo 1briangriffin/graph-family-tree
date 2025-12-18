@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    /* v4 @apply works if tailwind is imported */
+    @apply bg-gray-50 text-gray-900;
+  }
+}
