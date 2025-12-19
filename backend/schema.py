@@ -27,13 +27,17 @@ def create_schema():
 
     # 2. Person Table
     # Using serial ID for simplicity, or we could use UUID string
+    # 2. Person Table
+    # Using serial ID for simplicity, or we could use UUID string
     exec_safe("""
         CREATE NODE TABLE Person(
             id SERIAL,
             name STRING,
             gender STRING,
-            birth_date DATE,
-            death_date DATE,
+            birth_date STRING,
+            birth_place STRING,
+            death_date STRING,
+            death_place STRING,
             bio STRING,
             PRIMARY KEY (id)
         )
@@ -44,7 +48,7 @@ def create_schema():
         CREATE NODE TABLE Event(
             id SERIAL,
             type STRING,
-            event_date DATE,
+            event_date STRING,
             description STRING,
             location STRING,
             PRIMARY KEY (id)
@@ -62,8 +66,8 @@ def create_schema():
     exec_safe("""
         CREATE REL TABLE MARRIED_TO(
             FROM Person TO Person,
-            start_date DATE,
-            end_date DATE
+            start_date STRING,
+            end_date STRING
         )
     """)
     

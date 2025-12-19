@@ -27,8 +27,10 @@ class UserInDB(User):
 class PersonBase(BaseModel):
     name: str
     gender: Optional[str] = None
-    birth_date: Optional[date] = None
-    death_date: Optional[date] = None
+    birth_date: Optional[str] = None   # Changed to str
+    birth_place: Optional[str] = None
+    death_date: Optional[str] = None   # Changed to str
+    death_place: Optional[str] = None
     bio: Optional[str] = None
 
 class PersonCreate(PersonBase):
@@ -39,7 +41,7 @@ class PersonResponse(PersonBase):
 
 class EventBase(BaseModel):
     type: str # 'BIRTH', 'MARRIAGE', 'DEATH', etc
-    event_date: Optional[date] = None
+    event_date: Optional[str] = None   # Changed to str
     description: Optional[str] = None
     location: Optional[str] = None
 

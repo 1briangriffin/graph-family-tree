@@ -2,6 +2,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
+import PersonProfile from './features/people/PersonProfile';
 import FamilyGraph from './features/tree/FamilyGraph';
 
 // Placeholders for now
@@ -16,6 +17,7 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="tree" element={<FamilyGraph />} />
           <Route path="people" element={<PeopleList />} />
+          <Route path="people/:personId" element={<PersonProfile />} />
         </Route>
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

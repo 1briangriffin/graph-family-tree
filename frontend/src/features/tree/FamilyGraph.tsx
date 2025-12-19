@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import ReactFlow, {
     Background,
     Controls,
@@ -7,10 +7,10 @@ import ReactFlow, {
     useEdgesState,
     type Edge,
     type Node,
-    Position,
     ConnectionLineType,
 } from 'reactflow';
 import dagre from 'dagre';
+import { useNavigate } from 'react-router-dom';
 import 'reactflow/dist/style.css';
 
 import client from '../../api/client';
@@ -36,8 +36,6 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => 
 
     nodes.forEach((node) => {
         const nodeWithPosition = dagreGraph.node(node.id);
-        node.targetPosition = isHorizontal ? Position.Left : Position.Top;
-        node.sourcePosition = isHorizontal ? Position.Right : Position.Bottom;
 
         // Shift data to center anchor
         node.position = {
@@ -51,23 +49,26 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => 
     return { nodes, edges };
 };
 
-const isHorizontal = false;
-
 const FamilyGraph: React.FC = () => {
+    const navigate = useNavigate();
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
-    const fetchData = async () => {
+    const onNodeClick = (_event: React.MouseEvent, node: Node) => {
+        navigate(`/people/${node.id}`);
+    };
+
+    const fetchData = useCallback(async () => {
         try {
             const response = await client.get('/relationships/graph');
             const { nodes: rawNodes, edges: rawEdges } = response.data;
 
             // Transform Backend Nodes to React Flow Nodes
-            const flowNodes: Node[] = rawNodes.map((n: any) => ({
+            const flowNodes: Node[] = rawNodes.map((n: { id: number; name: string; gender?: string }) => ({
                 id: n.id.toString(),
-                type: 'default', // 'default', 'input', 'output' or custom
+                type: 'default',
                 data: { label: `${n.name} (${n.gender || '?'})` },
-                position: { x: 0, y: 0 }, // layout will fix
+                position: { x: 0, y: 0 },
                 style: {
                     background: '#fff',
                     border: '1px solid #777',
@@ -78,7 +79,7 @@ const FamilyGraph: React.FC = () => {
             }));
 
             // Transform Backend Edges to React Flow Edges
-            const flowEdges: Edge[] = rawEdges.map((e: any, idx: number) => ({
+            const flowEdges: Edge[] = rawEdges.map((e: { source: number; target: number; type: string }, idx: number) => ({
                 id: `e-${idx}`,
                 source: e.source.toString(),
                 target: e.target.toString(),
@@ -99,11 +100,11 @@ const FamilyGraph: React.FC = () => {
         } catch (error) {
             console.error("Failed to fetch graph", error);
         }
-    };
+    }, [setNodes, setEdges]);
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [fetchData]);
 
     return (
         <div className="h-[80vh] w-full bg-gray-100 border border-gray-300 rounded-lg shadow-inner">
@@ -112,6 +113,7 @@ const FamilyGraph: React.FC = () => {
                 edges={edges}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
+                onNodeClick={onNodeClick}
                 fitView
             >
                 <Background />

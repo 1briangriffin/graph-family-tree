@@ -1,6 +1,26 @@
 # Graph Family Tree
 
-1. Overview & Objectives
+## Startup Commands
+
+To run the application, you need to start both the Backend (API) and the Frontend (UI) in separate terminals.
+
+**1. Backend**
+```powershell
+cd backend
+uv run uvicorn main:app --reload
+```
+Runs on: `http://localhost:8000`
+
+**2. Frontend**
+```powershell
+cd frontend
+npm run dev
+```
+Runs on: `http://localhost:5173`
+
+---
+
+## 1. Overview & Objectives
 
 Purpose: Build a family tree web application for casual genealogists and family members that allows rich data capture, interactive visualization, media attachment, and multi-user collaboration.
 
