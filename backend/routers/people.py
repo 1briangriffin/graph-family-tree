@@ -20,23 +20,24 @@ def create_person(person: PersonCreate):
         CREATE (p:Person {
             name: $name, 
             gender: $gender, 
-            birth_date: $birth_date,
-            birth_place: $birth_place,
-            death_date: $death_date,
-            death_place: $death_place,
-            bio: $bio
+            birth_date: $bdate, 
+            birth_place: $bplace,
+            death_date: $ddate, 
+            death_place: $dplace,
+            bio: $bio,
+            maiden_name: $maiden
         })
-        RETURN p.id, p.name, p.gender, p.birth_date, p.birth_place, p.death_date, p.death_place, p.bio
+        RETURN p.id, p.name, p.gender, p.birth_date, p.birth_place, p.death_date, p.death_place, p.bio, p.maiden_name
     """
-    
     params = {
         "name": person.name,
         "gender": person.gender,
-        "birth_date": person.birth_date,
-        "birth_place": person.birth_place,
-        "death_date": person.death_date,
-        "death_place": person.death_place,
-        "bio": person.bio
+        "bdate": person.birth_date,
+        "bplace": person.birth_place,
+        "ddate": person.death_date,
+        "dplace": person.death_place,
+        "bio": person.bio,
+        "maiden": person.maiden_name
     }
     
     try:
@@ -52,7 +53,8 @@ def create_person(person: PersonCreate):
                 birth_place=row[4],
                 death_date=row[5],
                 death_place=row[6],
-                bio=row[7]
+                bio=row[7],
+                maiden_name=row[8]
             )
         else:
             raise HTTPException(status_code=500, detail="Failed to create person")
@@ -67,7 +69,7 @@ def search_people(q: str):
     query = """
         MATCH (p:Person)
         WHERE p.name CONTAINS $q
-        RETURN p.id, p.name, p.gender, p.birth_date, p.birth_place, p.death_date, p.death_place, p.bio
+        RETURN p.id, p.name, p.gender, p.birth_date, p.birth_place, p.death_date, p.death_place, p.bio, p.maiden_name
         LIMIT 20
     """
     
@@ -83,7 +85,8 @@ def search_people(q: str):
             birth_place=row[4],
             death_date=row[5],
             death_place=row[6],
-            bio=row[7]
+            bio=row[7],
+            maiden_name=row[8]
         ))
     return people
 
@@ -93,7 +96,7 @@ def list_people(limit: int = 50, skip: int = 0):
     # Pagination in Cypher: SKIP x LIMIT y
     query = f"""
         MATCH (p:Person)
-        RETURN p.id, p.name, p.gender, p.birth_date, p.birth_place, p.death_date, p.death_place, p.bio
+        RETURN p.id, p.name, p.gender, p.birth_date, p.birth_place, p.death_date, p.death_place, p.bio, p.maiden_name
         SKIP {skip} LIMIT {limit}
     """
     
@@ -109,7 +112,8 @@ def list_people(limit: int = 50, skip: int = 0):
             birth_place=row[4],
             death_date=row[5],
             death_place=row[6],
-            bio=row[7]
+            bio=row[7],
+            maiden_name=row[8]
         ))
     return people
 
@@ -119,7 +123,7 @@ def get_person(person_id: int):
     query = """
         MATCH (p:Person)
         WHERE p.id = $id
-        RETURN p.id, p.name, p.gender, p.birth_date, p.birth_place, p.death_date, p.death_place, p.bio
+        RETURN p.id, p.name, p.gender, p.birth_date, p.birth_place, p.death_date, p.death_place, p.bio, p.maiden_name
     """
     result = conn.execute(query, parameters={"id": person_id})
     if result.has_next():
@@ -132,7 +136,8 @@ def get_person(person_id: int):
             birth_place=row[4],
             death_date=row[5],
             death_place=row[6],
-            bio=row[7]
+            bio=row[7],
+            maiden_name=row[8]
         )
     raise HTTPException(status_code=404, detail="Person not found")
 
@@ -150,8 +155,9 @@ def update_person(person_id: int, person: PersonCreate):
             p.birth_place = $birth_place,
             p.death_date = $death_date,
             p.death_place = $death_place,
-            p.bio = $bio
-        RETURN p.id, p.name, p.gender, p.birth_date, p.birth_place, p.death_date, p.death_place, p.bio
+            p.bio = $bio,
+            p.maiden_name = $maiden
+        RETURN p.id, p.name, p.gender, p.birth_date, p.birth_place, p.death_date, p.death_place, p.bio, p.maiden_name
     """
     
     params = {
@@ -162,7 +168,8 @@ def update_person(person_id: int, person: PersonCreate):
         "birth_place": person.birth_place,
         "death_date": person.death_date,
         "death_place": person.death_place,
-        "bio": person.bio
+        "bio": person.bio,
+        "maiden": person.maiden_name
     }
     
     try:
@@ -177,7 +184,8 @@ def update_person(person_id: int, person: PersonCreate):
                 birth_place=row[4],
                 death_date=row[5],
                 death_place=row[6],
-                bio=row[7]
+                bio=row[7],
+                maiden_name=row[8]
             )
         else:
              raise HTTPException(status_code=404, detail="Person not found")

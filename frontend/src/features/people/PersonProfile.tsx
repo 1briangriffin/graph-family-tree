@@ -4,6 +4,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { User, Heart, ArrowUp, ArrowDown, Plus, Edit, Trash2, Users } from 'lucide-react';
 import client from '../../api/client';
 import PersonFormModal from './PersonFormModal';
+import RelationshipEditModal from './RelationshipEditModal';
 
 interface Person {
     id: number;
@@ -18,6 +19,7 @@ interface Person {
     end_date?: string;
     relationship_type?: 'biological' | 'adopted';
     adoption_date?: string;
+    maiden_name?: string;
 }
 
 interface Relationships {
@@ -35,6 +37,7 @@ interface NewPersonData {
     death_date: string;
     death_place: string;
     bio: string;
+    maidenName?: string;
     startDate?: string;
     endDate?: string;
     relationshipSubtype?: 'biological' | 'adopted';
@@ -51,6 +54,10 @@ const PersonProfile: React.FC = () => {
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'PARENT' | 'CHILD' | 'SPOUSE' | 'EDIT_SELF' | null>(null);
+
+    // Relationship Edit State
+    const [editRelModalOpen, setEditRelModalOpen] = useState(false);
+    const [editRelData, setEditRelData] = useState<{ type: 'SPOUSE' | 'PARENT' | 'CHILD', id: number, data: any } | null>(null);
 
     const fetchData = React.useCallback(async () => {
         if (!personId) return;
@@ -90,7 +97,8 @@ const PersonProfile: React.FC = () => {
             birth_place: data.birth_place === '' ? null : data.birth_place,
             death_place: data.death_place === '' ? null : data.death_place,
             gender: data.gender === '' ? null : data.gender,
-            bio: data.bio === '' ? null : data.bio
+            bio: data.bio === '' ? null : data.bio,
+            maiden_name: data.maidenName === '' ? null : data.maidenName
         };
 
         try {
@@ -142,7 +150,8 @@ const PersonProfile: React.FC = () => {
             birth_place: data.birth_place === '' ? null : data.birth_place,
             death_place: data.death_place === '' ? null : data.death_place,
             gender: data.gender === '' ? null : data.gender,
-            bio: data.bio === '' ? null : data.bio
+            bio: data.bio === '' ? null : data.bio,
+            maiden_name: data.maidenName === '' ? null : data.maidenName
         };
 
         try {
@@ -232,6 +241,52 @@ const PersonProfile: React.FC = () => {
         }
     };
 
+    const handleOpenEditRel = (type: 'SPOUSE' | 'PARENT' | 'CHILD', relative: Person) => {
+        setEditRelData({
+            type,
+            id: relative.id,
+            data: {
+                startDate: relative.start_date,
+                endDate: relative.end_date,
+                adoptionDate: relative.adoption_date,
+                relationshipType: relative.relationship_type
+            }
+        });
+        setEditRelModalOpen(true);
+    };
+
+    const handleUpdateRelationship = async (data: any) => {
+        if (!person || !editRelData) return;
+
+        try {
+            if (editRelData.type === 'SPOUSE') {
+                await client.put('/relationships/spouse', {
+                    spouse1_id: person.id,
+                    spouse2_id: editRelData.id,
+                    start_date: data.startDate,
+                    end_date: data.endDate
+                });
+            } else if (editRelData.type === 'PARENT' || editRelData.type === 'CHILD') {
+                // Determine parent/child direction
+                // If type is PARENT, relative is Parent, Person is Child
+                // If type is CHILD, Person is Parent, relative is Child
+                const parentId = editRelData.type === 'PARENT' ? editRelData.id : person.id;
+                const childId = editRelData.type === 'PARENT' ? person.id : editRelData.id;
+
+                await client.put('/relationships/parent', {
+                    parent_id: parentId,
+                    child_id: childId,
+                    relationship_type: data.relationshipType, // Use value from form
+                    adoption_date: data.adoptionDate
+                });
+            }
+            fetchData();
+        } catch (error) {
+            console.error("Failed to update relationship", error);
+            alert("Failed to update relationship details.");
+        }
+    };
+
     if (loading) return <div className="p-8">Loading profile...</div>;
     if (!person) return <div className="p-8">Person not found.</div>;
 
@@ -243,12 +298,13 @@ const PersonProfile: React.FC = () => {
         birth_place: person.birth_place || '',
         death_date: person.death_date || '',
         death_place: person.death_place || '',
-        bio: person.bio || ''
+        bio: person.bio || '',
+        maidenName: person.maiden_name || ''
     };
 
     return (
         <div className="max-w-4xl mx-auto p-6">
-            <button onClick={() => navigate('/')} className="mb-4 text-blue-600 hover:underline">
+            <button onClick={() => navigate('/tree')} className="mb-4 text-blue-600 hover:underline">
                 &larr; Back to Tree
             </button>
 
@@ -274,7 +330,10 @@ const PersonProfile: React.FC = () => {
                     <User size={64} />
                 </div>
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">{person.name}</h1>
+                    <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                        {person.name}
+                        {person.maiden_name && <span className="text-xl font-normal text-gray-500 ml-2">(née {person.maiden_name})</span>}
+                    </h1>
                     <div className="text-gray-500 mb-4 flex flex-col gap-2">
                         {person.gender && <span className="inline-block px-3 py-1 bg-gray-100 rounded-full text-sm w-fit">{person.gender}</span>}
                         <div className="flex flex-col gap-1 mt-2">
@@ -326,13 +385,22 @@ const PersonProfile: React.FC = () => {
                                             </span>
                                         )}
                                     </div>
-                                    <button
-                                        onClick={() => handleRemoveRelative('PARENT', p.id)}
-                                        className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        title="Unlink Parent"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
+                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                            onClick={() => handleOpenEditRel('PARENT', p)}
+                                            className="text-gray-300 hover:text-indigo-600"
+                                            title="Edit Relationship"
+                                        >
+                                            <Edit size={16} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleRemoveRelative('PARENT', p.id)}
+                                            className="text-gray-300 hover:text-red-500"
+                                            title="Unlink Parent"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
                                 </li>
                             ))}
                         </ul>
@@ -365,13 +433,22 @@ const PersonProfile: React.FC = () => {
                                             </span>
                                         )}
                                     </div>
-                                    <button
-                                        onClick={() => handleRemoveRelative('SPOUSE', p.id)}
-                                        className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        title="Unlink Spouse"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
+                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                            onClick={() => handleOpenEditRel('SPOUSE', p)}
+                                            className="text-gray-300 hover:text-indigo-600"
+                                            title="Edit Relationship"
+                                        >
+                                            <Edit size={16} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleRemoveRelative('SPOUSE', p.id)}
+                                            className="text-gray-300 hover:text-red-500"
+                                            title="Unlink Spouse"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
                                 </li>
                             ))}
                         </ul>
@@ -425,13 +502,22 @@ const PersonProfile: React.FC = () => {
                                             </span>
                                         )}
                                     </div>
-                                    <button
-                                        onClick={() => handleRemoveRelative('CHILD', p.id)}
-                                        className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        title="Unlink Child"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
+                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                            onClick={() => handleOpenEditRel('CHILD', p)}
+                                            className="text-gray-300 hover:text-indigo-600"
+                                            title="Edit Relationship"
+                                        >
+                                            <Edit size={16} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleRemoveRelative('CHILD', p.id)}
+                                            className="text-gray-300 hover:text-red-500"
+                                            title="Unlink Child"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
                                 </li>
                             ))}
                         </ul>
@@ -459,6 +545,17 @@ const PersonProfile: React.FC = () => {
                                 modalType === 'EDIT_SELF' ? 'Edit Person' : 'Add Relative'
                 }
             />
+
+            {editRelData && (
+                <RelationshipEditModal
+                    isOpen={editRelModalOpen}
+                    onClose={() => setEditRelModalOpen(false)}
+                    onSubmit={handleUpdateRelationship}
+                    title="Edit Relationship Details"
+                    type={editRelData.type}
+                    initialData={editRelData.data}
+                />
+            )}
         </div>
     );
 };

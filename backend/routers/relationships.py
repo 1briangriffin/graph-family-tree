@@ -123,14 +123,20 @@ def get_whole_graph():
     # 2. Get all edges
     # PARENT_OF
     edges = []
-    parent_query = "MATCH (p:Person)-[r:PARENT_OF]->(c:Person) RETURN p.id, c.id"
+    # PARENT_OF and ADOPTED_BY
+    edges = []
+    # We can match both types of edges
+    parent_query = """
+        MATCH (p:Person)-[r:PARENT_OF|ADOPTED_BY]->(c:Person) 
+        RETURN p.id, c.id, label(r)
+    """
     parent_result = conn.execute(parent_query)
     while parent_result.has_next():
         row = parent_result.get_next()
         edges.append({
             "source": row[0],
             "target": row[1],
-            "type": "PARENT_OF"
+            "type": row[2] # "PARENT_OF" or "ADOPTED_BY"
         })
 
     # MARRIED_TO
@@ -166,22 +172,108 @@ def remove_parent(relation: ParentRelation):
         
     return {"message": "Parent relationship removed"}
 
-@router.delete("/spouse")
-def remove_spouse(relation: SpouseRelation):
+@router.put("/parent")
+def update_parent(relation: ParentRelation):
+    """
+    Update parent relationship metadata and type.
+    If type changes (Bio <-> Adopted), delete old edge and create new one.
+    """
     db, conn = get_db_connection()
     
-    # Match undirected for deletion essentially
-    query = """
+    # 1. Check existing relationship type
+    check_query = """
+        MATCH (p:Person)-[r]->(c:Person)
+        WHERE p.id = $pid AND c.id = $cid
+        RETURN label(r)
+    """
+    params = {
+        "pid": relation.parent_id, 
+        "cid": relation.child_id
+    }
+    
+    result = conn.execute(check_query, parameters=params)
+    if not result.has_next():
+        raise HTTPException(status_code=404, detail="Relationship not found")
+        
+    current_type_label = result.get_next()[0] # "PARENT_OF" or "ADOPTED_BY"
+    
+    target_type_label = "ADOPTED_BY" if relation.relationship_type == "adopted" else "PARENT_OF"
+    
+    if current_type_label != target_type_label:
+        # Type Changed: Delete and Re-create
+        delete_query = f"""
+            MATCH (p:Person)-[r:{current_type_label}]->(c:Person)
+            WHERE p.id = $pid AND c.id = $cid
+            DELETE r
+        """
+        conn.execute(delete_query, parameters=params)
+        
+        # Create new
+        if target_type_label == "ADOPTED_BY":
+             create_query = """
+                MATCH (p:Person), (c:Person)
+                WHERE p.id = $pid AND c.id = $cid
+                CREATE (p)-[:ADOPTED_BY {adoption_date: $ad_date}]->(c)
+            """
+             create_params = {**params, "ad_date": relation.adoption_date}
+             conn.execute(create_query, parameters=create_params)
+        else:
+             create_query = """
+                MATCH (p:Person), (c:Person)
+                WHERE p.id = $pid AND c.id = $cid
+                CREATE (p)-[:PARENT_OF]->(c)
+            """
+             conn.execute(create_query, parameters=params)
+             
+    else:
+        # Same Type: Just Update Props
+        if target_type_label == "ADOPTED_BY":
+             query = """
+                MATCH (p:Person)-[r:ADOPTED_BY]->(c:Person)
+                WHERE p.id = $pid AND c.id = $cid
+                SET r.adoption_date = $ad_date
+            """
+             conn.execute(query, parameters={**params, "ad_date": relation.adoption_date})
+             
+    return {"message": "Relationship updated"}
+
+@router.put("/spouse")
+def update_spouse(relation: SpouseRelation):
+    """
+    Update spouse relationship metadata (start_date, end_date).
+    """
+    db, conn = get_db_connection()
+    
+    # Kuzu requires non-null for SET usually, or dynamic query.
+    # We'll use simple dynamic construction.
+    
+    set_clauses = []
+    params = {"id1": relation.spouse1_id, "id2": relation.spouse2_id}
+    
+    if relation.start_date is not None:
+        set_clauses.append("r.start_date = $start")
+        params["start"] = relation.start_date
+        
+    if relation.end_date is not None:
+        set_clauses.append("r.end_date = $end")
+        params["end"] = relation.end_date
+        
+    if not set_clauses:
+        return {"message": "No changes"}
+        
+    set_str = ", ".join(set_clauses)
+    
+    query = f"""
         MATCH (p1:Person)-[r:MARRIED_TO]-(p2:Person)
         WHERE p1.id = $id1 AND p2.id = $id2
-        DELETE r
+        SET {set_str}
+        RETURN p1.id
     """
-    params = {"id1": relation.spouse1_id, "id2": relation.spouse2_id}
     
     try:
         conn.execute(query, parameters=params)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
         
-    return {"message": "Spouse relationship removed"}
+    return {"message": "Spouse relationship updated"}
 

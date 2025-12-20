@@ -32,6 +32,7 @@ class PersonBase(BaseModel):
     death_date: Optional[str] = None   # Changed to str
     death_place: Optional[str] = None
     bio: Optional[str] = None
+    maiden_name: Optional[str] = None
 
 class PersonCreate(PersonBase):
     pass
