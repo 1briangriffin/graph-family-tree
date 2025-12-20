@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Network, Users, LogOut, Home } from 'lucide-react';
+import { Network, Users, LogOut, Home, Calendar, MapPin } from 'lucide-react';
 
 const AppLayout: React.FC = () => {
     const location = useLocation();
@@ -10,6 +10,8 @@ const AppLayout: React.FC = () => {
         { label: 'Dashboard', path: '/', icon: Home },
         { label: 'Family Tree', path: '/tree', icon: Network },
         { label: 'People', path: '/people', icon: Users },
+        { label: 'Events', path: '/events', icon: Calendar },
+        { label: 'Places', path: '/places', icon: MapPin },
     ];
 
     return (

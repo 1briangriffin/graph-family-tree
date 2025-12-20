@@ -79,6 +79,48 @@ def create_schema():
         )
     """)
 
+    # 5. Place Table
+    exec_safe("""
+        CREATE NODE TABLE Place(
+            id SERIAL,
+            name STRING,
+            street STRING,
+            city STRING,
+            state STRING,
+            country STRING,
+            geo_lat DOUBLE,
+            geo_lng DOUBLE,
+            PRIMARY KEY (id)
+        )
+    """)
+
+    # Residence: Person -> Place
+    exec_safe("""
+        CREATE REL TABLE LIVED_AT(
+            FROM Person TO Place,
+            start_date STRING,
+            end_date STRING,
+            residence_type STRING
+        )
+    """)
+
+    # 6. Media Table
+    exec_safe("""
+        CREATE NODE TABLE Media(
+            id SERIAL,
+            filename STRING,
+            file_path STRING,
+            file_type STRING,
+            caption STRING,
+            upload_date STRING,
+            PRIMARY KEY (id)
+        )
+    """)
+
+    # Media relationships
+    exec_safe("CREATE REL TABLE HAS_MEDIA(FROM Person TO Media)")
+    exec_safe("CREATE REL TABLE EVENT_HAS_MEDIA(FROM Event TO Media)")
+
     print("Schema initialization complete.")
 
 if __name__ == "__main__":

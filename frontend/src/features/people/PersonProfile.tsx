@@ -1,7 +1,7 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { User, Heart, ArrowUp, ArrowDown, Plus, Edit, Trash2, Users } from 'lucide-react';
+import { User, Heart, ArrowUp, ArrowDown, Plus, Edit, Trash2, Users, Calendar, MapPin, Image, Upload } from 'lucide-react';
 import client from '../../api/client';
 import PersonFormModal from './PersonFormModal';
 import RelationshipEditModal from './RelationshipEditModal';
@@ -29,6 +29,15 @@ interface Relationships {
     siblings: Person[];
 }
 
+interface PersonEvent {
+    id: number;
+    type: string;
+    event_date: string | null;
+    description: string | null;
+    location: string | null;
+    role: string | null;
+}
+
 interface NewPersonData {
     name: string;
     gender: string;
@@ -49,7 +58,25 @@ const PersonProfile: React.FC = () => {
     const navigate = useNavigate();
     const [person, setPerson] = useState<Person | null>(null);
     const [relationships, setRelationships] = useState<Relationships>({ parents: [], children: [], spouses: [], siblings: [] });
+    const [events, setEvents] = useState<PersonEvent[]>([]);
+    const [residences, setResidences] = useState<{
+        id: number;
+        name: string;
+        city: string | null;
+        state: string | null;
+        country: string | null;
+        start_date: string | null;
+        end_date: string | null;
+        residence_type: string | null;
+    }[]>([]);
+    const [media, setMedia] = useState<{
+        id: number;
+        filename: string;
+        file_type: string;
+        caption: string | null;
+    }[]>([]);
     const [loading, setLoading] = useState(true);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -68,6 +95,18 @@ const PersonProfile: React.FC = () => {
 
             const relRes = await client.get(`/people/${personId}/relationships`);
             setRelationships(relRes.data);
+
+            // Fetch events for this person
+            const eventsRes = await client.get(`/events/person/${personId}`);
+            setEvents(eventsRes.data);
+
+            // Fetch residences for this person
+            const residencesRes = await client.get(`/places/person/${personId}`);
+            setResidences(residencesRes.data);
+
+            // Fetch media for this person
+            const mediaRes = await client.get(`/media/person/${personId}`);
+            setMedia(mediaRes.data);
         } catch (error) {
             console.error("Failed to load profile", error);
         } finally {
@@ -524,6 +563,178 @@ const PersonProfile: React.FC = () => {
                     )}
                 </div>
 
+            </div>
+
+            {/* Events Section */}
+            <div className="mt-8 bg-white rounded-xl shadow-md p-6">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-semibold flex items-center text-gray-800">
+                        <Calendar className="w-5 h-5 mr-2 text-purple-500" />
+                        Life Events
+                    </h2>
+                    <Link
+                        to="/events"
+                        className="text-indigo-600 hover:underline text-sm"
+                    >
+                        View All Events →
+                    </Link>
+                </div>
+
+                {events.length === 0 ? (
+                    <p className="text-gray-400 italic">No events linked to this person.</p>
+                ) : (
+                    <div className="space-y-3">
+                        {events.map((evt) => (
+                            <div key={evt.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                                <div className="w-2 h-2 mt-2 rounded-full bg-purple-400"></div>
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium text-gray-800">
+                                            {evt.type.replace('_', ' ')}
+                                        </span>
+                                        {evt.role && (
+                                            <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded">
+                                                {evt.role}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {evt.event_date && (
+                                        <p className="text-sm text-gray-500">{evt.event_date}</p>
+                                    )}
+                                    {evt.location && (
+                                        <p className="text-sm text-gray-500 flex items-center gap-1">
+                                            <MapPin size={12} /> {evt.location}
+                                        </p>
+                                    )}
+                                    {evt.description && (
+                                        <p className="text-sm text-gray-600 mt-1">{evt.description}</p>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Residences Section */}
+            <div className="mt-8 bg-white rounded-xl shadow-md p-6">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-semibold flex items-center text-gray-800">
+                        <MapPin className="w-5 h-5 mr-2 text-green-500" />
+                        Residences
+                    </h2>
+                    <Link
+                        to="/places"
+                        className="text-indigo-600 hover:underline text-sm"
+                    >
+                        Manage Places →
+                    </Link>
+                </div>
+
+                {residences.length === 0 ? (
+                    <p className="text-gray-400 italic">No residences linked to this person.</p>
+                ) : (
+                    <div className="space-y-3">
+                        {residences.map((res, idx) => (
+                            <div key={`${res.id}-${idx}`} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                                <div className="w-2 h-2 mt-2 rounded-full bg-green-400"></div>
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium text-gray-800">{res.name}</span>
+                                        {res.residence_type && (
+                                            <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded">
+                                                {res.residence_type}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-gray-500">
+                                        {[res.city, res.state, res.country].filter(Boolean).join(', ') || 'No location details'}
+                                    </p>
+                                    {(res.start_date || res.end_date) && (
+                                        <p className="text-sm text-gray-400">
+                                            {res.start_date || '?'} — {res.end_date || 'present'}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Photos & Documents Section */}
+            <div className="mt-8 bg-white rounded-xl shadow-md p-6">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-semibold flex items-center text-gray-800">
+                        <Image className="w-5 h-5 mr-2 text-blue-500" />
+                        Photos & Documents
+                    </h2>
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 text-sm"
+                    >
+                        <Upload size={16} />
+                        Upload
+                    </button>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        accept="image/*,application/pdf,.doc,.docx"
+                        onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file || !personId) return;
+
+                            const formData = new FormData();
+                            formData.append('file', file);
+
+                            try {
+                                // Upload the file
+                                const uploadRes = await client.post('/media/upload', formData, {
+                                    headers: { 'Content-Type': 'multipart/form-data' }
+                                });
+                                const mediaId = uploadRes.data.id;
+
+                                // Link to this person
+                                await client.post(`/media/${mediaId}/link/person/${personId}`);
+
+                                // Refresh
+                                fetchData();
+                            } catch (error) {
+                                console.error('Upload failed', error);
+                                alert('Failed to upload file');
+                            }
+
+                            // Clear input
+                            e.target.value = '';
+                        }}
+                    />
+                </div>
+
+                {media.length === 0 ? (
+                    <p className="text-gray-400 italic">No photos or documents linked to this person.</p>
+                ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                        {media.map((m) => (
+                            <div key={m.id} className="relative group">
+                                {m.file_type === 'image' ? (
+                                    <img
+                                        src={`http://localhost:8000/media/${m.id}/file`}
+                                        alt={m.caption || m.filename}
+                                        className="w-full h-24 object-cover rounded-lg border border-gray-200"
+                                    />
+                                ) : (
+                                    <div className="w-full h-24 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                                        <span className="text-xs text-gray-500 text-center px-2">
+                                            {m.filename}
+                                        </span>
+                                    </div>
+                                )}
+                                <p className="text-xs text-gray-500 mt-1 truncate">{m.caption || m.filename}</p>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             <PersonFormModal

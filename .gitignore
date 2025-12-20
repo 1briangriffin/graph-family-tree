@@ -10,3 +10,12 @@ venv/
 node_modules/
 dist/
 .DS_Store
+
+# Database (contains user data - never commit)
+backend/kuzu_db/
+backend/kuzu_db
+backend/kuzu_db.wal
+backend/kuzu_db.shadow
+
+# Media uploads (user-uploaded files)
+backend/media_uploads/
