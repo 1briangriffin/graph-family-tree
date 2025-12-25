@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from schema import create_schema
-from routers import auth, people, relationships, events, places, media
+from routers import auth, people, relationships, events, places, media, occupations, organizations
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,6 +38,8 @@ app.include_router(relationships.router, prefix="/relationships", tags=["relatio
 app.include_router(events.router, prefix="/events", tags=["events"])
 app.include_router(places.router, prefix="/places", tags=["places"])
 app.include_router(media.router, prefix="/media", tags=["media"])
+app.include_router(occupations.router, prefix="/occupations", tags=["occupations"])
+app.include_router(organizations.router, prefix="/organizations", tags=["organizations"])
 
 @app.get("/")
 def read_root():

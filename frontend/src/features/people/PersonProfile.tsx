@@ -5,6 +5,7 @@ import { User, Heart, ArrowUp, ArrowDown, Plus, Edit, Trash2, Users, Calendar, M
 import client from '../../api/client';
 import PersonFormModal from './PersonFormModal';
 import RelationshipEditModal from './RelationshipEditModal';
+import OccupationsSection from './OccupationsSection';
 
 interface Person {
     id: number;
@@ -736,6 +737,9 @@ const PersonProfile: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Occupations Section */}
+            <OccupationsSection personId={parseInt(personId!)} onUpdate={fetchData} />
 
             <PersonFormModal
                 isOpen={isModalOpen}

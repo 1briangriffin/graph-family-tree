@@ -10,12 +10,11 @@ router = APIRouter()
 def create_person(person: PersonCreate):
     db, conn = get_db_connection()
     
-    # Create Person in Kuzu
-    # Note: Kuzu Python API requires careful type handling for params.
-    # We use f-strings for simplicity in MVP where param binding might be fussy, 
-    # but ideally we should use parameters={"name": person.name} if supported by installed version.
+    # Helper to convert empty strings to None
+    def empty_to_none(value):
+        return None if value == "" else value
     
-    # Using parameters (safer):
+    # Create Person in Kuzu
     query = """
         CREATE (p:Person {
             name: $name, 
@@ -31,13 +30,13 @@ def create_person(person: PersonCreate):
     """
     params = {
         "name": person.name,
-        "gender": person.gender,
-        "bdate": person.birth_date,
-        "bplace": person.birth_place,
-        "ddate": person.death_date,
-        "dplace": person.death_place,
-        "bio": person.bio,
-        "maiden": person.maiden_name
+        "gender": empty_to_none(person.gender),
+        "bdate": empty_to_none(person.birth_date),
+        "bplace": empty_to_none(person.birth_place),
+        "ddate": empty_to_none(person.death_date),
+        "dplace": empty_to_none(person.death_place),
+        "bio": empty_to_none(person.bio),
+        "maiden": empty_to_none(person.maiden_name)
     }
     
     try:
@@ -61,46 +60,49 @@ def create_person(person: PersonCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-@router.get("/search", response_model=List[PersonResponse])
-def search_people(q: str):
-    db, conn = get_db_connection()
-    # Case insensitive search using regular expression or similar if Kuzu supports it.
-    # Kuzu supports `contains(string, search)`
-    query = """
-        MATCH (p:Person)
-        WHERE p.name CONTAINS $q
-        RETURN p.id, p.name, p.gender, p.birth_date, p.birth_place, p.death_date, p.death_place, p.bio, p.maiden_name
-        LIMIT 20
-    """
-    
-    result = conn.execute(query, parameters={"q": q})
-    people = []
-    while result.has_next():
-        row = result.get_next()
-        people.append(PersonResponse(
-            id=row[0],
-            name=row[1],
-            gender=row[2],
-            birth_date=row[3],
-            birth_place=row[4],
-            death_date=row[5],
-            death_place=row[6],
-            bio=row[7],
-            maiden_name=row[8]
-        ))
-    return people
-
 @router.get("/", response_model=List[PersonResponse])
-def list_people(limit: int = 50, skip: int = 0):
+def list_people(
+    search: Optional[str] = None,
+    birth_year: Optional[int] = None,
+    location: Optional[str] = None,
+    alive: Optional[bool] = None
+):
+    """List all people with optional search and filters."""
     db, conn = get_db_connection()
-    # Pagination in Cypher: SKIP x LIMIT y
+    
+    # Build WHERE clauses dynamically
+    where_clauses = []
+    params = {}
+    
+    if search:
+        where_clauses.append("p.name CONTAINS $search")
+        params["search"] = search
+    
+    if birth_year:
+        where_clauses.append("p.birth_date CONTAINS $birth_year")
+        params["birth_year"] = str(birth_year)
+    
+    if location:
+        where_clauses.append("(p.birth_place CONTAINS $location OR p.death_place CONTAINS $location)")
+        params["location"] = location
+    
+    if alive is not None:
+        if alive:
+            where_clauses.append("p.death_date IS NULL")
+        else:
+            where_clauses.append("p.death_date IS NOT NULL")
+    
+    # Construct query
+    where_str = " AND ".join(where_clauses) if where_clauses else "TRUE"
     query = f"""
         MATCH (p:Person)
+        WHERE {where_str}
         RETURN p.id, p.name, p.gender, p.birth_date, p.birth_place, p.death_date, p.death_place, p.bio, p.maiden_name
-        SKIP {skip} LIMIT {limit}
+        ORDER BY p.name
+        LIMIT 100
     """
     
-    result = conn.execute(query)
+    result = conn.execute(query, parameters=params)
     people = []
     while result.has_next():
         row = result.get_next()

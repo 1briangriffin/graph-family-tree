@@ -10,10 +10,7 @@ _db_instance = None
 def get_db_instance():
     global _db_instance
     if _db_instance is None:
-        if not os.path.exists(DB_PATH):
-            os.makedirs(DB_PATH)
-        # 1GB buffer pool size default is usually fine, can increase if needed
-        # _db_instance = kuzu.Database(DB_PATH, buffer_pool_size=1024**3)
+        # Kuzu will create the database directory structure automatically
         _db_instance = kuzu.Database(DB_PATH)
     return _db_instance
 

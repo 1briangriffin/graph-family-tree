@@ -39,6 +39,7 @@ def create_schema():
             death_date STRING,
             death_place STRING,
             bio STRING,
+            maiden_name STRING,
             PRIMARY KEY (id)
         )
     """)
@@ -120,6 +121,34 @@ def create_schema():
     # Media relationships
     exec_safe("CREATE REL TABLE HAS_MEDIA(FROM Person TO Media)")
     exec_safe("CREATE REL TABLE EVENT_HAS_MEDIA(FROM Event TO Media)")
+
+    # 7. Occupation Table
+    exec_safe("""
+        CREATE NODE TABLE Occupation(
+            id SERIAL,
+            title STRING,
+            description STRING,
+            start_date STRING,
+            end_date STRING,
+            location STRING,
+            PRIMARY KEY (id)
+        )
+    """)
+
+    # 8. Organization Table
+    exec_safe("""
+        CREATE NODE TABLE Organization(
+            id SERIAL,
+            name STRING,
+            type STRING,
+            location STRING,
+            PRIMARY KEY (id)
+        )
+    """)
+
+    # Occupation relationships
+    exec_safe("CREATE REL TABLE WORKED_AS(FROM Person TO Occupation)")
+    exec_safe("CREATE REL TABLE EMPLOYED_BY(FROM Occupation TO Organization)")
 
     print("Schema initialization complete.")
 

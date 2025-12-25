@@ -66,9 +66,11 @@ Roles are defined per family tree, not globally.
 
 Nodes for each Person with properties: name, birth_date, death_date, bio, media references, education, occupations, military service, awards.
 
-Relationships: PARENT_OF, MARRIED_TO, SIBLING_OF, ADOPTED_BY, STEP_SIBLING_OF.
+Relationships: PARENT_OF (with 'biological' or 'adopted' property), MARRIED_TO (with start_date and end_date).
 
 Support multiple marriages, adoptions, step-siblings.
+
+Use "Lowest Common Ancestor" approach to determine family relationships, including siblings, cousins, aunts, uncles, etc.   
 
 3.2 Events
 

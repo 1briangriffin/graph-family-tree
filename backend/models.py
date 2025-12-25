@@ -91,3 +91,31 @@ class MediaResponse(MediaBase):
     file_path: str
     upload_date: Optional[str] = None
 
+# --- Occupation Models ---
+
+class OccupationBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    location: Optional[str] = None
+
+class OccupationCreate(OccupationBase):
+    person_id: int
+    organization_id: Optional[int] = None
+
+class OccupationResponse(OccupationBase):
+    id: int
+
+# --- Organization Models ---
+
+class OrganizationBase(BaseModel):
+    name: str
+    type: Optional[str] = None  # 'company', 'military', 'school', 'non-profit', 'government'
+    location: Optional[str] = None
+
+class OrganizationCreate(OrganizationBase):
+    pass
+
+class OrganizationResponse(OrganizationBase):
+    id: int

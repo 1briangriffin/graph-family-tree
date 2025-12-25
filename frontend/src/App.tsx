@@ -2,13 +2,13 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
 import PersonProfile from './features/people/PersonProfile';
+import PeopleListPage from './features/people/PeopleListPage';
 import FamilyGraph from './features/tree/FamilyGraph';
 import EventsPage from './features/events/EventsPage';
 import PlacesPage from './features/places/PlacesPage';
 
 // Placeholders for now
 const Dashboard = () => <div className="p-4"><h2 className="text-2xl font-bold mb-4">Welcome to your Family Tree</h2><p>Select "Family Tree" from the sidebar to visualize your data.</p></div>;
-const PeopleList = () => <div className="p-4"><h2 className="text-2xl font-bold mb-4">People Directory</h2><p>(Coming soon)</p></div>;
 
 function App() {
   return (
@@ -17,7 +17,7 @@ function App() {
         <Route path="/" element={<AppLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="tree" element={<FamilyGraph />} />
-          <Route path="people" element={<PeopleList />} />
+          <Route path="people" element={<PeopleListPage />} />
           <Route path="people/:personId" element={<PersonProfile />} />
           <Route path="events" element={<EventsPage />} />
           <Route path="places" element={<PlacesPage />} />
