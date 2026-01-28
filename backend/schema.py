@@ -61,6 +61,14 @@ def create_schema():
     # Parentage: Person -> Person
     exec_safe("CREATE REL TABLE PARENT_OF(FROM Person TO Person)")
     
+    # Adoption: Person -> Person (with date)
+    exec_safe("""
+        CREATE REL TABLE ADOPTED_BY(
+            FROM Person TO Person,
+            adoption_date STRING
+        )
+    """)
+    
     # Spouses: Person <-> Person (Undirected conceptually, but directed in graph DBs often represented as pair or directed req)
     # Kuzu supports recursive queries, but typically we define directed. 
     # For now: MARRIED_TO
@@ -68,7 +76,8 @@ def create_schema():
         CREATE REL TABLE MARRIED_TO(
             FROM Person TO Person,
             start_date STRING,
-            end_date STRING
+            end_date STRING,
+            end_reason STRING
         )
     """)
     

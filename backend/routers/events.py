@@ -7,7 +7,8 @@ from database import get_db_connection
 router = APIRouter()
 
 # Event Types (Birth/Marriage/Death are handled by Person fields and relationship dates)
-EVENT_TYPES = ['GRADUATION', 'MILITARY_SERVICE', 'AWARD', 'IMMIGRATION', 'RETIREMENT', 'OTHER']
+# WEDDING is for capturing ceremony details (venue, participants, etc.) - distinct from MARRIED_TO relationship
+EVENT_TYPES = ['WEDDING', 'GRADUATION', 'MILITARY_SERVICE', 'AWARD', 'IMMIGRATION', 'RETIREMENT', 'OTHER']
 
 class EventCreate(BaseModel):
     type: str
