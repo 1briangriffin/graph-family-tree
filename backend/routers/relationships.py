@@ -18,6 +18,7 @@ class SpouseRelation(BaseModel):
     spouse2_id: int
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    end_reason: Optional[str] = None  # 'divorce', 'death', 'annulment', or None for ongoing
 
 @router.post("/parent", status_code=status.HTTP_201_CREATED)
 def add_parent(relation: ParentRelation):
@@ -67,39 +68,47 @@ def add_spouse(relation: SpouseRelation):
     if relation.spouse1_id == relation.spouse2_id:
         raise HTTPException(status_code=400, detail="Cannot marry self")
 
-    # Treat as undirected in concept, but we store one direction or both?
-    # Usually easier to query if we enforce one direction canonical or just store double.
-    # For now, store single direction: MARRIED_TO
-    
-    
-    # 3. Dynamic definition of properties to handle NULLs safely if Kuzu acts up
-    props = []
-    params = {"id1": relation.spouse1_id, "id2": relation.spouse2_id}
-    
-    if relation.start_date:
-        props.append("start_date: $start")
-        params["start"] = relation.start_date
-        
-    if relation.end_date:
-        props.append("end_date: $end")
-        params["end"] = relation.end_date
-        
-    props_str = ", ".join(props)
-    rel_token = f"[:MARRIED_TO {{{props_str}}}]" if props else "[:MARRIED_TO]"
+    params = {
+        "id1": relation.spouse1_id, 
+        "id2": relation.spouse2_id,
+    }
 
-    query = f"""
-        MATCH (p1:Person), (p2:Person)
-        WHERE p1.id = $id1 AND p2.id = $id2
-        CREATE (p1)-{rel_token}->(p2)
-        RETURN p1.id
-    """
+    # First create the relationship
+    create_query = "MATCH (p1:Person), (p2:Person) WHERE p1.id = $id1 AND p2.id = $id2 CREATE (p1)-[:MARRIED_TO]->(p2) RETURN p1.id"
     
     try:
-        result = conn.execute(query, parameters=params)
+        result = conn.execute(create_query, parameters=params)
         if not result.has_next():
              raise HTTPException(status_code=404, detail="Persons not found")
     except Exception as e:
          raise HTTPException(status_code=500, detail=str(e))
+    
+    # Update each property individually (Kuzu may not support combined SET clauses)
+    base_match = "MATCH (p1:Person)-[r:MARRIED_TO]->(p2:Person) WHERE p1.id = $id1 AND p2.id = $id2"
+    base_params = {"id1": relation.spouse1_id, "id2": relation.spouse2_id}
+    
+    if relation.start_date:
+        try:
+            conn.execute(f"{base_match} SET r.start_date = $val", 
+                        parameters={**base_params, "val": relation.start_date})
+        except Exception as e:
+            print(f"[ERROR] Failed to set start_date: {e}")
+    
+    if relation.end_date:
+        try:
+            conn.execute(f"{base_match} SET r.end_date = $val",
+                        parameters={**base_params, "val": relation.end_date})
+        except Exception as e:
+            print(f"[ERROR] Failed to set end_date: {e}")
+    
+    if relation.end_reason:
+        try:
+            conn.execute(f"{base_match} SET r.end_reason = $val",
+                        parameters={**base_params, "val": relation.end_reason})
+        except Exception as e:
+            print(f"[ERROR] Failed to set end_reason: {e}")
+    
+    return {"message": "Spouse relationship created"}
          
 @router.get("/graph")
 def get_whole_graph():
@@ -139,15 +148,20 @@ def get_whole_graph():
             "type": row[2] # "PARENT_OF" or "ADOPTED_BY"
         })
 
-    # MARRIED_TO
-    spouse_query = "MATCH (p1:Person)-[r:MARRIED_TO]->(p2:Person) RETURN p1.id, p2.id"
+    # MARRIED_TO - include relationship properties for edge tooltips
+    spouse_query = "MATCH (p1:Person)-[r:MARRIED_TO]->(p2:Person) RETURN p1.id, p2.id, r.start_date, r.end_date, r.end_reason, p1.name, p2.name"
     spouse_result = conn.execute(spouse_query)
     while spouse_result.has_next():
         row = spouse_result.get_next()
         edges.append({
             "source": row[0],
             "target": row[1],
-            "type": "MARRIED_TO"
+            "type": "MARRIED_TO",
+            "start_date": row[2],
+            "end_date": row[3],
+            "end_reason": row[4],
+            "source_name": row[5],
+            "target_name": row[6]
         })
         
     return {"nodes": nodes, "edges": edges}

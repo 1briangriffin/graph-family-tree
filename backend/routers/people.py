@@ -265,7 +265,7 @@ def get_person_relationships(person_id: int):
     spouses_query = """
         MATCH (p:Person)-[r:MARRIED_TO]-(spouse:Person)
         WHERE p.id = $id
-        RETURN spouse.id, spouse.name, spouse.gender, spouse.birth_date, spouse.death_date, spouse.bio, r.start_date, r.end_date
+        RETURN spouse.id, spouse.name, spouse.gender, spouse.birth_date, spouse.death_date, spouse.bio, r.start_date, r.end_date, r.end_reason
     """
     spouses_res = conn.execute(spouses_query, parameters={"id": person_id})
     spouses = []
@@ -279,7 +279,8 @@ def get_person_relationships(person_id: int):
             "death_date": row[4],
             "bio": row[5],
             "start_date": row[6],
-            "end_date": row[7]
+            "end_date": row[7],
+            "end_reason": row[8]
         })
 
     # 4. Siblings (Inferred)

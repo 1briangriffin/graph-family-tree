@@ -18,6 +18,7 @@ interface Person {
     bio?: string;
     start_date?: string;
     end_date?: string;
+    end_reason?: 'divorce' | 'death' | 'annulment' | null;
     relationship_type?: 'biological' | 'adopted';
     adoption_date?: string;
     maiden_name?: string;
@@ -463,34 +464,49 @@ const PersonProfile: React.FC = () => {
                     </div>
                     {relationships.spouses.length === 0 ? <p className="text-gray-400 italic">None</p> : (
                         <ul className="space-y-2">
-                            {relationships.spouses.map(p => (
-                                <li key={p.id} className="flex justify-between items-center group">
-                                    <div>
-                                        <Link to={`/people/${p.id}`} className="text-indigo-600 hover:underline">{p.name}</Link>
-                                        {(p.start_date || p.end_date) && (
-                                            <span className="text-xs text-gray-500 ml-2">
-                                                (m. {p.start_date || '?'}{p.end_date ? ` - ${p.end_date}` : ''})
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                            onClick={() => handleOpenEditRel('SPOUSE', p)}
-                                            className="text-gray-300 hover:text-indigo-600"
-                                            title="Edit Relationship"
-                                        >
-                                            <Edit size={16} />
-                                        </button>
-                                        <button
-                                            onClick={() => handleRemoveRelative('SPOUSE', p.id)}
-                                            className="text-gray-300 hover:text-red-500"
-                                            title="Unlink Spouse"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
-                                </li>
-                            ))}
+                            {relationships.spouses.map(p => {
+                                // Determine marriage status display
+                                let statusBadge = null;
+                                if (p.end_reason === 'divorce') {
+                                    statusBadge = <span className="text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded ml-1">Divorced</span>;
+                                } else if (p.end_reason === 'death') {
+                                    statusBadge = <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded ml-1">Widowed</span>;
+                                } else if (p.end_reason === 'annulment') {
+                                    statusBadge = <span className="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded ml-1">Annulled</span>;
+                                } else if (!p.end_date) {
+                                    statusBadge = <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded ml-1">Married</span>;
+                                }
+
+                                return (
+                                    <li key={p.id} className="flex justify-between items-center group">
+                                        <div>
+                                            <Link to={`/people/${p.id}`} className="text-indigo-600 hover:underline">{p.name}</Link>
+                                            {statusBadge}
+                                            {(p.start_date || p.end_date) && (
+                                                <span className="text-xs text-gray-500 ml-2">
+                                                    (m. {p.start_date || '?'}{p.end_date ? ` - ${p.end_date}` : ''})
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={() => handleOpenEditRel('SPOUSE', p)}
+                                                className="text-gray-300 hover:text-indigo-600"
+                                                title="Edit Relationship"
+                                            >
+                                                <Edit size={16} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleRemoveRelative('SPOUSE', p.id)}
+                                                className="text-gray-300 hover:text-red-500"
+                                                title="Unlink Spouse"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </li>
+                                );
+                            })}
                         </ul>
                     )}
                 </div>

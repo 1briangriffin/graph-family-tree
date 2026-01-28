@@ -29,8 +29,9 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => 
     });
 
     edges.forEach((edge) => {
-        // Marriage edges should be same-rank if possible. 
-        if (edge.label === 'Married') {
+        // Marriage edges should be same-rank if possible.
+        // Check data.edgeType since labels now contain dates
+        if (edge.data?.edgeType === 'MARRIED_TO') {
             dagreGraph.setEdge(edge.source, edge.target, { minlen: 0, weight: 0 });
         } else {
             // Parent->Child edges (biological or adopted) - standard weight
@@ -46,43 +47,14 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => 
         const nodeWithPosition = dagreGraph.node(node.id);
         nodePositions.set(node.id, { x: nodeWithPosition.x, y: nodeWithPosition.y });
     });
-
-    // Post-process 1: Align Spouses
-    edges.forEach(edge => {
-        if (edge.label === 'Married') {
-            const p1 = nodePositions.get(edge.source);
-            const p2 = nodePositions.get(edge.target);
-
-            if (p1 && p2) {
-                const maxY = Math.max(p1.y, p2.y);
-                p1.y = maxY;
-                p2.y = maxY;
-
-                const minGap = nodeWidth + 40;
-                const distance = Math.abs(p1.x - p2.x);
-
-                if (distance < minGap) {
-                    if (p1.x <= p2.x) {
-                        p2.x = p1.x + minGap;
-                    } else {
-                        p1.x = p2.x + minGap;
-                    }
-                }
-
-                nodePositions.set(edge.source, p1);
-                nodePositions.set(edge.target, p2);
-            }
-        }
-    });
-
-    // Post-process 2: Find and align SIBLINGS
+    // Post-process 1: Find and align SIBLINGS first
     // Siblings = nodes that share at least one parent (via PARENT_OF or ADOPTED_BY edges)
     // Build a map: parentId -> [childIds]
     const parentToChildren = new Map<string, Set<string>>();
 
     edges.forEach(edge => {
-        // Parent edges: PARENT_OF (no label) or ADOPTED_BY (label='Adopted')
-        if (edge.label !== 'Married') {
+        // Parent edges: PARENT_OF (no edgeType or PARENT_OF) or ADOPTED_BY
+        if (edge.data?.edgeType !== 'MARRIED_TO') {
             const parentId = edge.source;
             const childId = edge.target;
 
@@ -143,26 +115,154 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => 
                 nodePositions.set(sibId, pos);
             }
         });
+    });
+    // Post-process 2: Align Spouses AFTER sibling alignment
+    // Strategy: For people with multiple marriages, use the Y from their ANCHORED spouse
+    // (the one with parents in the tree) rather than maxY which pulls them down
 
-        // Spread siblings horizontally to prevent overlap
-        const sibArray = Array.from(siblings);
-        const sibGap = nodeWidth + 40;
-        let startX = 0;
-        sibArray.forEach((sibId, idx) => {
-            const pos = nodePositions.get(sibId);
-            if (pos) {
-                if (idx === 0) {
-                    startX = pos.x;
-                } else {
-                    // Ensure minimum gap from previous sibling
-                    const prevPos = nodePositions.get(sibArray[idx - 1]);
-                    if (prevPos && pos.x < prevPos.x + sibGap) {
-                        pos.x = prevPos.x + sibGap;
-                        nodePositions.set(sibId, pos);
+    // Build set of anchored nodes (have at least one parent edge pointing to them)
+    const anchoredNodes = new Set<string>();
+    edges.forEach(edge => {
+        if (edge.data?.edgeType !== 'MARRIED_TO') {
+            anchoredNodes.add(edge.target);
+        }
+    });
+
+    // First pass: For each person, determine the target Y based on their anchored spouse(s)
+    const targetYMap = new Map<string, number>();
+
+    // Initialize with current positions
+    nodePositions.forEach((pos, nodeId) => {
+        targetYMap.set(nodeId, pos.y);
+    });
+
+    // For each marriage, if one spouse is anchored and the other isn't,
+    // the non-anchored one should adopt the anchored one's Y
+    edges.forEach(edge => {
+        if (edge.data?.edgeType === 'MARRIED_TO') {
+            const sourceId = edge.source;
+            const targetId = edge.target;
+            const sourceAnchored = anchoredNodes.has(sourceId);
+            const targetAnchored = anchoredNodes.has(targetId);
+            const sourceY = nodePositions.get(sourceId)?.y ?? 0;
+            const targetY = nodePositions.get(targetId)?.y ?? 0;
+
+            if (sourceAnchored && !targetAnchored) {
+                // Target should adopt source's Y (but don't go higher than current)
+                const currentTargetY = targetYMap.get(targetId) ?? targetY;
+                // Use the ANCHORED spouse's Y (prioritize anchored positions)
+                targetYMap.set(targetId, sourceY);
+            } else if (targetAnchored && !sourceAnchored) {
+                const currentSourceY = targetYMap.get(sourceId) ?? sourceY;
+                targetYMap.set(sourceId, targetY);
+            }
+        }
+    });
+
+    // Apply the target Y values
+    targetYMap.forEach((y, nodeId) => {
+        const pos = nodePositions.get(nodeId);
+        if (pos) {
+            pos.y = y;
+            nodePositions.set(nodeId, pos);
+        }
+    });
+
+    // Now process marriages to ensure spouses are at the same Y
+    // and have proper horizontal spacing
+    edges.forEach(edge => {
+        if (edge.data?.edgeType === 'MARRIED_TO') {
+            const p1 = nodePositions.get(edge.source);
+            const p2 = nodePositions.get(edge.target);
+
+            if (p1 && p2) {
+                // If they're not at the same Y, align to the one who is anchored
+                if (Math.abs(p1.y - p2.y) > 5) {
+                    const sourceAnchored = anchoredNodes.has(edge.source);
+                    const targetAnchored = anchoredNodes.has(edge.target);
+
+                    if (sourceAnchored && !targetAnchored) {
+                        p2.y = p1.y;
+                    } else if (targetAnchored && !sourceAnchored) {
+                        p1.y = p2.y;
+                    } else {
+                        // Use min Y to keep people at higher (earlier) levels
+                        const minY = Math.min(p1.y, p2.y);
+                        p1.y = minY;
+                        p2.y = minY;
+                    }
+                }
+
+                // Ensure minimum horizontal gap
+                const minGap = nodeWidth + 40;
+                const distance = Math.abs(p1.x - p2.x);
+
+                if (distance < minGap) {
+                    if (p1.x <= p2.x) {
+                        p2.x = p1.x + minGap;
+                    } else {
+                        p1.x = p2.x + minGap;
+                    }
+                }
+
+                nodePositions.set(edge.source, p1);
+                nodePositions.set(edge.target, p2);
+            }
+        }
+    });
+
+    // Post-process 3: Resolve ALL overlaps at each Y level
+    // Group all nodes by their Y position (with some tolerance for floating point)
+    const yLevels = new Map<number, string[]>();
+    const yTolerance = 5; // Nodes within 5px of each other are considered same level
+
+    nodePositions.forEach((pos, nodeId) => {
+        // Find if there's already a level close to this Y
+        let foundLevel = false;
+        yLevels.forEach((nodeIds, levelY) => {
+            if (Math.abs(pos.y - levelY) < yTolerance) {
+                nodeIds.push(nodeId);
+                foundLevel = true;
+            }
+        });
+        if (!foundLevel) {
+            yLevels.set(pos.y, [nodeId]);
+        }
+    });
+
+    // For each Y level, sort nodes by X and ensure minimum spacing
+    const minNodeGap = nodeWidth + 60; // Minimum gap between node centers
+
+    yLevels.forEach((nodeIds) => {
+        if (nodeIds.length <= 1) return;
+
+        // Sort by current X position
+        nodeIds.sort((a, b) => {
+            const posA = nodePositions.get(a);
+            const posB = nodePositions.get(b);
+            return (posA?.x || 0) - (posB?.x || 0);
+        });
+
+        // Ensure minimum spacing between consecutive nodes
+        for (let i = 1; i < nodeIds.length; i++) {
+            const prevPos = nodePositions.get(nodeIds[i - 1]);
+            const currPos = nodePositions.get(nodeIds[i]);
+
+            if (prevPos && currPos) {
+                const currentGap = currPos.x - prevPos.x;
+                if (currentGap < minNodeGap) {
+                    // Push current node (and all subsequent nodes) to the right
+                    const shiftAmount = minNodeGap - currentGap;
+                    for (let j = i; j < nodeIds.length; j++) {
+                        const pos = nodePositions.get(nodeIds[j]);
+                        if (pos) {
+                            pos.x += shiftAmount;
+                            nodePositions.set(nodeIds[j], pos);
+                        }
                     }
                 }
             }
-        });
+        }
     });
 
     // Apply final positions
@@ -209,19 +309,65 @@ const FamilyGraph: React.FC = () => {
             }));
 
             // Transform Backend Edges to React Flow Edges
-            const graphEdges: Edge[] = rawEdges.map((e: { source: number; target: number; type: string }, idx: number) => ({
-                id: `e-${idx}`,
-                source: e.source.toString(),
-                target: e.target.toString(),
-                type: ConnectionLineType.SmoothStep,
-                label: e.type === 'MARRIED_TO' ? 'Married' : (e.type === 'ADOPTED_BY' ? 'Adopted' : ''),
-                animated: e.type === 'ADOPTED_BY', // Animate adopted edges for visibility
-                style: {
-                    stroke: e.type === 'MARRIED_TO' ? '#ff0072' : (e.type === 'ADOPTED_BY' ? '#2563eb' : '#374151'),
-                    strokeDasharray: e.type === 'ADOPTED_BY' ? '8,4' : 'none',
-                    strokeWidth: e.type === 'ADOPTED_BY' ? 3 : (e.type === 'MARRIED_TO' ? 2 : 1.5)
+            const graphEdges: Edge[] = rawEdges.map((e: {
+                source: number;
+                target: number;
+                type: string;
+                start_date?: string;
+                end_date?: string;
+                end_reason?: string;
+                source_name?: string;
+                target_name?: string;
+            }, idx: number) => {
+                let edgeLabel = '';
+                let labelStyle: React.CSSProperties = {};
+
+                if (e.type === 'MARRIED_TO') {
+                    // Build marriage tooltip/label
+                    let status = '';
+                    if (e.end_reason === 'divorce') {
+                        status = 'Divorced';
+                        labelStyle = { fill: '#dc2626', fontSize: 10, fontWeight: 500 };
+                    } else if (e.end_reason === 'death') {
+                        status = 'Widowed';
+                        labelStyle = { fill: '#4b5563', fontSize: 10, fontWeight: 500 };
+                    } else if (!e.end_date) {
+                        status = 'Married';
+                        labelStyle = { fill: '#16a34a', fontSize: 10, fontWeight: 500 };
+                    } else {
+                        status = 'Ended';
+                        labelStyle = { fill: '#6b7280', fontSize: 10 };
+                    }
+
+                    if (e.start_date || e.end_date) {
+                        edgeLabel = `${status} (${e.start_date || '?'} - ${e.end_date || 'present'})`;
+                    } else {
+                        edgeLabel = status;
+                    }
+                } else if (e.type === 'ADOPTED_BY') {
+                    edgeLabel = 'Adopted';
+                    labelStyle = { fill: '#2563eb', fontSize: 10 };
                 }
-            }));
+
+                return {
+                    id: `e-${idx}`,
+                    source: e.source.toString(),
+                    target: e.target.toString(),
+                    type: ConnectionLineType.SmoothStep,
+                    label: edgeLabel,
+                    labelStyle,
+                    labelBgStyle: { fill: '#fff', fillOpacity: 0.9 },
+                    labelBgPadding: [4, 2] as [number, number],
+                    labelBgBorderRadius: 4,
+                    animated: e.type === 'ADOPTED_BY',
+                    data: { edgeType: e.type },  // Store original edge type for layout calculations
+                    style: {
+                        stroke: e.type === 'MARRIED_TO' ? '#ff0072' : (e.type === 'ADOPTED_BY' ? '#2563eb' : '#374151'),
+                        strokeDasharray: e.type === 'ADOPTED_BY' ? '8,4' : 'none',
+                        strokeWidth: e.type === 'ADOPTED_BY' ? 3 : (e.type === 'MARRIED_TO' ? 2 : 1.5)
+                    }
+                };
+            });
 
             const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
                 graphNodes,

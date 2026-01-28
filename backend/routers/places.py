@@ -212,36 +212,51 @@ def delete_place(place_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{place_id}/residents")
+@router.post("/{place_id}/residents", status_code=status.HTTP_201_CREATED)
 def add_resident(place_id: int, link: ResidenceLink):
     """Add a resident to a place (LIVED_AT relationship)."""
     db, conn = get_db_connection()
     
-    query = """
-        MATCH (person:Person), (place:Place)
-        WHERE person.id = $pid AND place.id = $plid
-        CREATE (person)-[:LIVED_AT {
-            start_date: $start_date,
-            end_date: $end_date,
-            residence_type: $res_type
-        }]->(place)
-        RETURN person.id
-    """
     params = {
         "pid": link.person_id,
         "plid": place_id,
-        "start_date": link.start_date,
-        "end_date": link.end_date,
-        "res_type": link.residence_type
     }
     
+    # First create the relationship without properties (Kuzu doesn't support inline props)
+    create_query = "MATCH (person:Person), (place:Place) WHERE person.id = $pid AND place.id = $plid CREATE (person)-[:LIVED_AT]->(place) RETURN person.id"
+    
     try:
-        result = conn.execute(query, parameters=params)
+        result = conn.execute(create_query, parameters=params)
         if not result.has_next():
             raise HTTPException(status_code=404, detail="Person or Place not found")
-        return {"message": "Resident added"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+    # Now update properties if provided
+    set_clauses = []
+    update_params = {"pid": link.person_id, "plid": place_id}
+    
+    if link.start_date:
+        set_clauses.append("r.start_date = $start_date")
+        update_params["start_date"] = link.start_date
+    if link.end_date:
+        set_clauses.append("r.end_date = $end_date")
+        update_params["end_date"] = link.end_date
+    if link.residence_type:
+        set_clauses.append("r.residence_type = $res_type")
+        update_params["res_type"] = link.residence_type
+        
+    if set_clauses:
+        set_str = ", ".join(set_clauses)
+        update_query = f"MATCH (person:Person)-[r:LIVED_AT]->(place:Place) WHERE person.id = $pid AND place.id = $plid SET {set_str}"
+        
+        try:
+            conn.execute(update_query, parameters=update_params)
+        except Exception as e:
+            # Edge was created but properties failed - log but don't fail
+            print(f"Warning: Could not set residence properties: {e}")
+    
+    return {"message": "Resident added"}
 
 
 @router.delete("/{place_id}/residents/{person_id}")
